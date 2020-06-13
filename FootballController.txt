@@ -1,0 +1,173 @@
+using FootballLeagueTable.Models;
+using FootballLeagueTable.ViewModels;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Web.Http;
+
+namespace FootballLeagueTable.Controllers
+{
+    [RoutePrefix("football")]
+    public class FootballController : ApiController
+    {
+        [Route("recordgame")]
+        [HttpPost]
+        public virtual async Task<IHttpActionResult> InsertData(JObject jsonData)
+        {
+            RecordGameVM data = jsonData.ToObject<RecordGameVM>();
+            using (FootballLeagueTableEntity db = new FootballLeagueTableEntity())
+            {
+                string[] words = data.score.Split(':');
+                string scoreHome = "0";
+                string scoreAway = "0";
+
+                for (int i = 0; i < words.Length; i++)
+                {
+                    // Untuk Initial Value Club Home / Away
+                    // ScoreHome ngambil nilai awal
+                    scoreHome = (i == 0) ? words[i].Trim() : scoreHome;
+                    // ScoreAway ngambil nilai akhir
+                    scoreAway = (i == words.Length - 1) ? words[i].Trim() : scoreAway;
+                }
+
+                // Insert Data ke recordGame
+                var tableRecordGame = new recordgame();
+                tableRecordGame.clubhomename = data.clubhomename;
+                tableRecordGame.clubawayname = data.clubawayname;
+                tableRecordGame.score = data.score;
+                db.recordgames.Add(tableRecordGame);
+                db.SaveChanges();
+
+                // Insert ke table leagueStanding
+                var checkClubHome = db.leaguestandings.Where(d => d.clubname == data.clubhomename).Count();
+                var checkClubAway = db.leaguestandings.Where(d => d.clubname == data.clubawayname).Count();
+
+                var tableLeagueStandingHome = new leaguestanding();
+                var tableLeagueStandingAway = new leaguestanding();
+                var point = 0;
+                // HOME
+                if (checkClubHome == 0)
+                {
+                    //Insert Data ke leagueStanding HOME
+                    tableLeagueStandingHome.clubname = data.clubhomename;
+                    if (Convert.ToInt32(scoreHome) > Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingHome.points = 3.ToString();
+                    }
+                    else if (Convert.ToInt32(scoreHome) < Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingHome.points = 0.ToString();
+                    }
+                    else if (Convert.ToInt32(scoreHome) == Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingHome.points = 1.ToString();
+                    }
+                    db.leaguestandings.Add(tableLeagueStandingHome);
+                    db.SaveChanges();
+                }
+                else
+                {
+                    // Update Data leagueStanding HOME
+                    var updateDataHome = db.leaguestandings.Where(d => d.clubname == data.clubhomename).FirstOrDefault();
+                    var pointAwal = updateDataHome.points;
+                    db.leaguestandings.Remove(updateDataHome);
+                    db.SaveChanges();
+                    
+                    if (Convert.ToInt32(scoreHome) > Convert.ToInt32(scoreAway))
+                    {
+                       point = Convert.ToInt32(updateDataHome.points)  + 3;
+                    }
+                    else if (Convert.ToInt32(scoreHome) < Convert.ToInt32(scoreAway))
+                    {
+                        point = Convert.ToInt32(updateDataHome.points) + 0;
+                    }
+                    else if (Convert.ToInt32(scoreHome) == Convert.ToInt32(scoreAway))
+                    {
+                        point = Convert.ToInt32(updateDataHome.points) + 1;
+                    }
+                    tableLeagueStandingHome.clubname = data.clubhomename;
+                    tableLeagueStandingHome.points = point.ToString();
+                    db.leaguestandings.Add(tableLeagueStandingHome);
+                    db.SaveChanges();
+                }
+
+                // AWAY
+                if (checkClubAway == 0)
+                {
+                    //Insert Data ke leagueStanding AWAY
+                    tableLeagueStandingAway.clubname = data.clubawayname;
+                    if (Convert.ToInt32(scoreHome) < Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingAway.points = 3.ToString();
+                    }
+                    else if (Convert.ToInt32(scoreHome) > Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingAway.points = 0.ToString();
+                    }
+                    else if (Convert.ToInt32(scoreHome) == Convert.ToInt32(scoreAway))
+                    {
+                        tableLeagueStandingAway.points = 1.ToString();
+                    }
+                    db.leaguestandings.Add(tableLeagueStandingAway);
+                    db.SaveChanges();
+                }
+                else
+                {
+                    // Update Data leagueStanding AWAY
+                    var updateDataAway = db.leaguestandings.Where(d => d.clubname == data.clubawayname).FirstOrDefault();
+                    var pointAwal = updateDataAway.points;
+                    db.leaguestandings.Remove(updateDataAway);
+                    db.SaveChanges();
+
+                    if (Convert.ToInt32(scoreHome) < Convert.ToInt32(scoreAway))
+                    {
+                        point = Convert.ToInt32(updateDataAway.points) + 3;
+                    }
+                    else if (Convert.ToInt32(scoreHome) > Convert.ToInt32(scoreAway))
+                    {
+                        point = Convert.ToInt32(updateDataAway.points) + 0;
+                    }
+                    else if (Convert.ToInt32(scoreHome) == Convert.ToInt32(scoreAway))
+                    {
+                        point = Convert.ToInt32(updateDataAway.points) + 1;
+                    }
+                    tableLeagueStandingAway.clubname = data.clubawayname;
+                    tableLeagueStandingAway.points = point.ToString();
+                    db.leaguestandings.Add(tableLeagueStandingAway);
+                    db.SaveChanges();
+                }
+
+                return Ok("Action POST Successfully."); 
+
+            }
+        }
+
+        [Route("rank")]
+        [HttpGet]
+        public virtual async Task<IHttpActionResult> GetData(string clubname)
+        {
+            using (FootballLeagueTableEntity db = new FootballLeagueTableEntity())
+            {
+                var data = db.leaguestandings.Where(d => d.clubname == clubname).FirstOrDefault();
+                RankVM rank = new RankVM();
+                var dataAll = db.leaguestandings.OrderByDescending(d => d.points).ToList();
+
+                for (int i = 0; i < dataAll.Count; i++)
+                {
+                    if (dataAll[i].clubname == clubname)
+                    {
+                        rank.clubname = clubname;
+                        i += 1;
+                        rank.standing = i.ToString();
+                    }
+                }
+                
+                return Ok(rank);
+            }
+        }
+    }
+}
